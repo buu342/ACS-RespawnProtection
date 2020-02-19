@@ -1,0 +1,68 @@
+#library "respprot"
+#include "zcommon.acs"
+
+
+/*===================================================================================================
+											 Definitions
+===================================================================================================*/
+
+#define SECOND 35
+#define ATTACKTOLERANCE 15 // Frames before respawn protect is disabled when attacking
+
+
+/*===================================================================================================
+								     Respawn Protection Scripts
+===================================================================================================*/
+
+// Called when a player spawns for the first time
+script "RespawnProtect_Spawn" ENTER
+{
+	// Call the main logic script
+	ACS_NamedExecuteAlways("RespawnProtect_Logic", 0);
+}
+
+// Called when a player respawns
+script "RespawnProtect_Respawn" RESPAWN
+{
+	// Call the main logic script
+	ACS_NamedExecuteAlways("RespawnProtect_Logic", 0);
+}
+
+// Main Logic
+Script "RespawnProtect_Logic" (void)
+{
+	// First, get the settings from the console values
+	int time = FixedMul(GetCVar("sv_RespawnProtection_Time"),SECOND<<16)>>16;
+	int flickerSpeed = GetCVar("sv_RespawnProtection_FlickerSpeed");
+	int toleranceTime = 0;
+
+	// Make the player invulnerable and translucent (so we can change his alpha)
+	SetActorProperty(0, APROP_INVULNERABLE, 1);
+	SetActorProperty(0, APROP_RENDERSTYLE, STYLE_TRANSLUCENT);
+
+	// While there's still time
+	while (time > 0)
+	{
+		// Make the player flicker
+		int alpha = FixedDiv((time%flickerSpeed)<<16, flickerSpeed<<16);
+		SetActorProperty(0, APROP_ALPHA, alpha);
+
+		// If the player attacks while invulnerable (if the setting is on)
+		if (GetCVar("sv_RespawnProtection_StopOnAttack"))
+		{
+			// If the tolerance time has passed (to prevent invul being lost when respawning by left clicking), break the loop
+			toleranceTime++;
+			if (toleranceTime >= ATTACKTOLERANCE && GetPlayerInput(-1, INPUT_BUTTONS) & BT_ATTACK)
+				break;
+		}
+
+		// Decrease time so the loop can end
+		time--;
+		delay(1);
+	}
+
+	// Set the player back to normal
+	SetActorProperty(0, APROP_RENDERSTYLE, STYLE_NORMAL);
+	SetActorProperty(0, APROP_ALPHA, 1.0);
+	SetActorProperty(0, APROP_INVULNERABLE, 0);
+}
